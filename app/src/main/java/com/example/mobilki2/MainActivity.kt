@@ -4,6 +4,10 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
@@ -11,10 +15,39 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var ballView: BouncingBallView
+    private var sensorManager: SensorManager? = null
+    private val sensorEventListener = object : SensorEventListener {
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        override fun onSensorChanged(event: SensorEvent?) {
+            event?.let {
+                if (it.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+                    val ax = -it.values[0]
+                    val ay = it.values[1]
+                    ballView.updateAcceleration(ax, ay)
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContentView(BouncingBallView(this))
+        ballView = BouncingBallView(this)
+        setContentView(ballView)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.also {
+            sensorManager?.registerListener(sensorEventListener, it, SensorManager.SENSOR_DELAY_GAME)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        sensorManager?.unregisterListener(sensorEventListener)
     }
 }
 
@@ -37,7 +70,7 @@ class BouncingBallView(context: Context) : View(context) {
             if ((yPos - ballRadius < 0 && yVel < 0) || (yPos + ballRadius > height && yVel > 0)) yVel = -yVel
             xVel *= 0.98f
             yVel *= 0.98f
-            invalidate()
+            invalidate() // Request to redraw the view
             postDelayed(this, 16)
         }
     }
@@ -76,5 +109,10 @@ class BouncingBallView(context: Context) : View(context) {
             }
         }
         return true
+    }
+
+    fun updateAcceleration(ax: Float, ay: Float) {
+        xVel += ax
+        yVel += ay
     }
 }
